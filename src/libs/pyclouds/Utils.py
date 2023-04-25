@@ -1,3 +1,5 @@
+#This file is from Python-Clouds repository @SquidDev
+
 # fast math algorithms
 class FastRandom(object):
 	def __init__(self, seed):
