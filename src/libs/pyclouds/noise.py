@@ -1,3 +1,6 @@
+#This file is from Python-Clouds repository @SquidDev
+#Modifications by Karol Przybsyzewski 2023
+
 # Imports, sorted alphabetically.
 
 # Python packages
@@ -16,14 +19,14 @@ __all__ = ('SimplexNoiseGen', 'PerlinNoise')
 
 # Factory class utilizing perlin.SimplexNoise
 class SimplexNoiseGen(object):
-    def __init__(self, seed, octaves=6, zoom_level=0.002):  # octaves = 6,
+    def __init__(self, seed, octaves=6, zoom_level=0.001):  # octaves = 6,
         perm = list(range(255))
         self.randy = random.Random(seed)
         self.randy.shuffle(perm)
         
         self.noise = SimplexNoise(permutation_table=perm).noise2
 
-        self.PERSISTENCE = 3.1379201 # AKA lacunarity
+        self.PERSISTENCE = 1.8379201 # AKA lacunarity
         self.H = 0.836281
         self.OCTAVES = octaves       # Higher linearly increases calc time; increases apparent 'randomness'
         self.weights = [self.PERSISTENCE ** (-self.H * n) for n in range(self.OCTAVES)]
