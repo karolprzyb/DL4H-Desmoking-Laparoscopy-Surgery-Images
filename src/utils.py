@@ -210,8 +210,9 @@ def synthDatafromVidData(vid_data_list:List[VideoLoader],
             clip_data = Subset(vid_data, list(range(start_idx, end_idx)))
 
             # Skip clip if it is too short
-            if max(multi_frame) >= len(clip_data):
-                continue
+            if len(multi_frame):
+                if max(multi_frame) >= len(clip_data):
+                    continue
             
             # Make t_syn_data                
             for synth_smoke_idx in range(num_synth_smoke_per_bg_img):
