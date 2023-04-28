@@ -145,6 +145,45 @@ def psnr(img1:torch.Tensor, img2:torch.Tensor, img_range:float) -> torch.Tensor:
     return 20 * torch.log10(img_range / torch.sqrt(mse))
 
 
+class L1andSmoothLoss(torch.nn.Module):
+    '''
+        Loss is a sum of L1 and smoothness loss where the smoothness loss is computed by taking the 
+        spatial derivative of the image and summimg the absolute value of the derivative.
+            alpha*l1_loss + beta*smooth_loss
+    '''
+    def __init__(self, alpha:float=1.0, beta:float=1.0):
+        super(L1andSmoothLoss, self).__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.l1 = torch.nn.L1Loss()
+
+    def forward(self, img1:torch.Tensor, img2:torch.Tensor) -> torch.Tensor:
+        '''
+            Note the smoothness loss is applied to img1
+        '''
+        l1_loss = self.l1(img1, img2)
+        smooth_loss = torch.mean(torch.abs(img1[:, :, :, :-1] - img1[:, :, :, 1:])) + \
+                      torch.mean(torch.abs(img1[:, :, :-1, :] - img1[:, :, 1:, :]))
+        return self.alpha*l1_loss + self.beta*smooth_loss
+
+
+class SSIMLoss(torch.nn.Module):
+    def __init__(self, img_range:float, window_size:int=11):
+        '''
+            Module for ssim loss.
+            Inputs:
+                img_range: range of input images (i.e. 2 for [-1, 1])
+                window_size for ssim computation
+        '''
+        super(SSIMLoss, self).__init__()
+        self.window_size = window_size
+        self.img_range = img_range
+
+    def forward(self, img1:torch.Tensor, img2:torch.Tensor) -> torch.Tensor:
+        tssim, _ = ssim(img1, img2, self.img_range, window_size=self.window_size, size_average=True)
+        return 1.0 - tssim
+
+
 class MSSSIMLoss(torch.nn.Module):
     def __init__(self, img_range:float, window_size:int=11):
         '''
