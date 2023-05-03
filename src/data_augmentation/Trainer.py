@@ -41,6 +41,8 @@ class Trainer:
         self.run_val_and_test_every_steps = run_val_and_test_every_steps
         self.val_batch_size = val_batch_size
         self.test_batch_size = test_batch_size
+        self.validation_loader = None
+        self.test_loader = None
         
         self.global_step = 0
         self.train_step = 0
@@ -97,14 +99,15 @@ class Trainer:
     @torch.no_grad()
     def validation(self, net:torch.nn.Module, validation_set:Dataset, *args, **kwargs):
         # Set up validation loader
-        validation_loader = DataLoader(validation_set, shuffle = False, batch_size = 1, 
-                                 num_workers = self.num_workers, pin_memory = False)
+        if self.validation_loader is None:
+            self.validation_loader = DataLoader(validation_set, shuffle = False, batch_size = 1, 
+                                     num_workers = self.num_workers, pin_memory = True)
 
         # Loop through validation data
         net.eval()
         self.validation_step = 0
         with tqdm(total=len(validation_set), desc='Running Validation', unit='batch') as pbar:  # type: ignore
-            for itx_val, dataset_tuple in enumerate(validation_loader):
+            for itx_val, dataset_tuple in enumerate(self.validation_loader):
                 # Run validation iteration
                 self.validationIteration(net, dataset_tuple, *args, **kwargs)
 
@@ -120,14 +123,15 @@ class Trainer:
     @torch.no_grad()
     def test(self, net:torch.nn.Module, test_set:Dataset, *args, **kwargs):
         # Set up test loader
-        test_loader = DataLoader(test_set, shuffle = False, batch_size = 1, 
-                                 num_workers = self.num_workers, pin_memory = False)
+        if self.test_loader is None:
+            self.test_loader = DataLoader(test_set, shuffle = False, batch_size = 1, 
+                                     num_workers = self.num_workers, pin_memory = True)
 
         # Loop through validation data
         net.eval()
         self.test_step = 0
-        with tqdm(total=len(test_loader), desc='Running Test', unit='batch') as pbar:
-            for itx_test, dataset_tuple in enumerate(test_loader):
+        with tqdm(total=len(self.test_loader), desc='Running Test', unit='batch') as pbar:
+            for itx_test, dataset_tuple in enumerate(self.test_loader):
                 # Run validation iteration
                 self.testIteration(net, dataset_tuple, *args, **kwargs)
 

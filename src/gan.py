@@ -1,6 +1,5 @@
 import os
 import logging
-import argparse
 import json
 from typing import Union
 
@@ -8,24 +7,31 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim import Adam
 from torch.optim import Optimizer                 
-import models
 from synth_data_source import loadData
+from dcpref import DarkChannelPrior
+
 
 from utils import *
 from SynthTrainer import SynthTrainer
 
 
 class GANTrainer(SynthTrainer):
-    def __init__(self, optimzer_d:Optimizer, use_dark_channel:bool, *args, **kwargs):
+    def __init__(self, optimzer_d:Optimizer, use_dark_channel:bool=False, *args, **kwargs):
         # Just save what we need.
         self.optimizer_d = optimzer_d
         self.use_dark_channel = use_dark_channel
+        if self.use_dark_channel:
+            self.dcp_gen = DarkChannelPrior(kwargs['device'])
         super().__init__(*args, **kwargs)
+        #torch.autograd.set_detect_anomaly(True)
 
     def trainIteration(self, net:torch.nn.Module, dataset_tuple:Tuple, net_d:torch.nn.Module):
         smoke_img, true_mask, bg_img = dataset_tuple
+        
         smoke_img = smoke_img.to(device=self.device, dtype=torch.float32)
         bg_img = bg_img.to(device=self.device, dtype=torch.float32)
+
+        dark_img = self.dcp_gen(smoke_img).to(device=self.device)
 
         if torch.isnan(smoke_img).any():
             logging.warning("Training data, smoke_img, has NaN!!!!")
@@ -33,8 +39,14 @@ class GANTrainer(SynthTrainer):
         if torch.isnan(bg_img).any():
             logging.warning("Training data, bg_img, has NaN!!!!")
             return
+        if torch.isnan(smoke_img).any():
+            logging.warning("Dark channel data has NaN!!!!")
+            return
+
+        if self.use_dark_channel:
+            smoke_img = torch.cat((smoke_img, dark_img), dim=1)
         
-        smoke_img = smoke_img[:, :3, :, :] # Done for single frame... do I need this?
+       #smoke_img = smoke_img[:, :3, :, :] # Done for single frame... do I need this?
         
         # Train D
         # -- Inference on G and D w/ both predicted "fake" data and real data to train D
@@ -72,7 +84,11 @@ class GANTrainer(SynthTrainer):
         smoke_img, _, _ = dataset_tuple
         smoke_img = smoke_img.to(device=self.device, dtype=torch.float32)
 
-        smoke_img = smoke_img[:, :3, :, :] # Do I even need to do this?
+        dark_img = self.dcp_gen(smoke_img).to(device=self.device, dtype=torch.float32)
+        if self.use_dark_channel:
+            smoke_img = torch.cat((smoke_img, dark_img), dim=1)
+
+        #smoke_img = smoke_img[:, :3, :, :] # Do I even need to do this?
 
         bg_pred = net(smoke_img)
         
@@ -131,8 +147,9 @@ def run(args:dict, UNET:torch.nn.Module, discriminator:torch.nn.Module,
                           save_path = args['save'], num_epoch = args['epochs'], batch_size = args['batch'],
                           single_frame = True,
                           use_dark_channel=args['use_dark_channel'],
-                        #  pix2pix_condition = False,
                            run_val_and_test_every_steps = args['run_val_and_test_every_steps']
                           )
 
     trainer.train(UNET, train_dataset, val_dataset, test_dataset, net_d = discriminator)
+
+    return trainer
