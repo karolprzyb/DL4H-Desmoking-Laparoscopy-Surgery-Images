@@ -10,6 +10,8 @@ import imageio
 from scipy.io import loadmat
 
 '''
+Additional updates for pytorch 2.0 added by Karol Przybyszewski
+
 This code is a direct pytorch implementation of the original FSIM code provided by
 Lin ZHANG, Lei Zhang, Xuanqin Mou and David Zhang in Matlab. For the original version
 please see: 
@@ -113,6 +115,8 @@ class FSIM_base(nn.Module):
         self.fo = self.fo.cuda()
         self.dx = self.dx.cuda()
         self.dy = self.dy.cuda()
+        #self.den = pt.tensor(self.den).cuda()
+        #self.norient = pt.tensor(self.norient).cuda()
     
     def forward_gradloss(self,imgr,imgd):
         I1,Q1,Y1 = self.process_image_channels(imgr)
@@ -145,10 +149,11 @@ class FSIM_base(nn.Module):
     def lowpassfilter(self, rows, cols):
         cutoff = .45
         n = 15
-        x, y = self.create_meshgrid(cols,rows)
+        x, y = self.meshgridx, self.meshgridy
         radius = pt.sqrt(pt.pow(x,2) + pt.pow(y,2)).unsqueeze(0)       
         f = self.ifftshift2d( 1 / (1.0 + pt.pow(pt.div(radius,cutoff),2*n)) ) 
-        return f
+        self.lowpassfilterf = f
+        #return f
     
     def calculate_gradient_sim(self,gradientMap1,gradientMap2):
 
@@ -194,12 +199,14 @@ class FSIM_base(nn.Module):
         else:
             yrange = pt.arange(-(rows)/2, (rows)/2, step = 1, requires_grad=False)/(rows)
 
-        x, y = pt.meshgrid([xrange, yrange])
+        x, y = pt.meshgrid([xrange, yrange], indexing=None)
         
         if self.cuda_computation:
             x, y = x.cuda(), y.cuda()
             
-        return x.T, y.T
+        self.meshgridx = x.T
+        self.meshgridy = y.T
+        #return x.T, y.T
 
     def process_image_channels(self,img):
 
@@ -208,22 +215,11 @@ class FSIM_base(nn.Module):
 
         minDimension = min(rows,cols)    
 
-        Ycoef = pt.tensor([[0.299,0.587,0.114]])
-        Icoef = pt.tensor([[0.596,-0.274,-0.322]])
-        Qcoef = pt.tensor([[0.211,-0.523,0.312]])
-        
-        if self.cuda_computation:
-            Ycoef, Icoef, Qcoef = Ycoef.cuda(), Icoef.cuda(), Qcoef.cuda()
-
-        Yfilt=pt.cat(batch*[pt.cat(rows*cols*[Ycoef.unsqueeze(2)],dim=2).view(1,3,rows,cols)],0)
-        Ifilt=pt.cat(batch*[pt.cat(rows*cols*[Icoef.unsqueeze(2)],dim=2).view(1,3,rows,cols)],0)
-        Qfilt=pt.cat(batch*[pt.cat(rows*cols*[Qcoef.unsqueeze(2)],dim=2).view(1,3,rows,cols)],0)
-        
         # If images have three chanels
         if img.size()[1]==3:
-            Y = pt.sum(Yfilt*img,1).unsqueeze(1)
-            I = pt.sum(Ifilt*img,1).unsqueeze(1)
-            Q = pt.sum(Qfilt*img,1).unsqueeze(1)
+            Y = pt.sum(self.Yfilt*img,1).unsqueeze(1)
+            I = pt.sum(self.Ifilt*img,1).unsqueeze(1)
+            Q = pt.sum(self.Qfilt*img,1).unsqueeze(1)
         else:
             Y = pt.mean(img,1).unsqueeze(1)
             I = pt.ones(Y.size(),dtype=pt.float64)
@@ -240,7 +236,43 @@ class FSIM_base(nn.Module):
         Q = aveKernel(Q)
         Y = aveKernel(Y)
         return I,Q,Y
+    
+    def createAuxVars(self, batch, rows, cols):
+        self.Ycoef = pt.tensor([[0.299,0.587,0.114]])
+        self.Icoef = pt.tensor([[0.596,-0.274,-0.322]])
+        self.Qcoef = pt.tensor([[0.211,-0.523,0.312]])
+        self.radius = pt.cat(batch*[pt.sqrt(pt.pow(self.meshgridx,2) + pt.pow(self.meshgridy,2)).unsqueeze(0)],0)
+        self.lp = self.lowpassfilterf # Radius .45, 'sharpness' 15
+        theta = pt.cat(batch*[pt.atan2(-self.meshgridy,self.meshgridx).unsqueeze(0)],0)
+        theta  = self.ifftshift2d(theta) # Matrix values contain polar angle.
+                                         # (note -ve y is used to give +ve
+                                         # anti-clockwise angles        
+        self.sintheta = pt.sin(theta)
+        self.costheta = pt.cos(theta)
+        self.array_of_zeros_energy = pt.zeros(1,4,rows,cols)
+        self.array_of_zeros = pt.zeros(1,4,4,rows,cols,1)
 
+        if pt.cuda.is_available:
+            self.Ycoef, self.Icoef, self.Qcoef = self.Ycoef.cuda(), self.Icoef.cuda(), self.Qcoef.cuda()
+            self.radius = self.radius.cuda()
+            self.lp = self.lp.cuda()
+            self.sintheta = self.sintheta.cuda()
+            self.costheta = self.costheta.cuda()
+            self.array_of_zeros = self.array_of_zeros.cuda()
+            self.array_of_zeros_energy = self.array_of_zeros_energy.cuda()
+
+        self.lp = pt.cat(batch*[self.lp.unsqueeze(0)],0)
+        self.radius = self.ifftshift2d(self.radius) # Matrix values contain *normalised* radius from centre
+        self.radius[:,0,0] = 1 
+        self.Yfilt=pt.cat(batch*[pt.cat(rows*cols*[self.Ycoef.unsqueeze(2)],dim=2).view(1,3,rows,cols)],0)
+        self.Ifilt=pt.cat(batch*[pt.cat(rows*cols*[self.Icoef.unsqueeze(2)],dim=2).view(1,3,rows,cols)],0)
+        self.Qfilt=pt.cat(batch*[pt.cat(rows*cols*[self.Qcoef.unsqueeze(2)],dim=2).view(1,3,rows,cols)],0)
+
+    def setangl(self):
+        self.angl = pt.arange(0,self.norient,dtype=pt.float64)/self.norient*self.pi
+
+        if pt.cuda.is_available():
+            self.angl = self.angl.cuda()
         
     def phasecong2(self,img):
         '''
@@ -262,33 +294,16 @@ class FSIM_base(nn.Module):
 
         batch, rows, cols = img.shape[0],img.shape[2],img.shape[3]
 
-        imagefft = pt.rfft(img,signal_ndim=2,onesided=False)
+        imagefft = pt.view_as_real(pt.fft.fft2(img))
 
-        x, y = self.create_meshgrid(cols,rows)
-
-        radius = pt.cat(batch*[pt.sqrt(pt.pow(x,2) + pt.pow(y,2)).unsqueeze(0)],0)
-        theta = pt.cat(batch*[pt.atan2(-y,x).unsqueeze(0)],0)
-
-        radius = self.ifftshift2d(radius) # Matrix values contain *normalised* radius from centre
-        theta  = self.ifftshift2d(theta) # Matrix values contain polar angle.
-                                         # (note -ve y is used to give +ve
-                                         # anti-clockwise angles)
-
-        radius[:,0,0] = 1 
-        
-        sintheta = pt.sin(theta)
-        costheta = pt.cos(theta)
-
-        lp = self.lowpassfilter(rows,cols) # Radius .45, 'sharpness' 15
-        lp = pt.cat(batch*[lp.unsqueeze(0)],0)
+        x, y = self.meshgridx, self.meshgridy
  
         term1 = pt.cat(rows*cols*[self.fo.unsqueeze(2)],dim=2).view(-1,self.nscale,rows,cols)
         term1 = pt.cat(batch*[term1.unsqueeze(0)],0).view(-1,self.nscale,rows,cols)
-
-        term2 = pt.log(pt.cat(self.nscale*[radius.unsqueeze(1)],1)/term1)
+        term2 = pt.log(pt.cat(self.nscale*[self.radius.unsqueeze(1)],1)/term1)
         #  Apply low-pass filter    
         logGabor = pt.exp(-pt.pow(term2,2)/self.den)
-        logGabor = logGabor*lp
+        logGabor = logGabor*self.lp
         logGabor[:,:,0,0] = 0 # Set the value at the 0 frequency point of the filter
                               # back to zero (undo the radius fudge).
 
@@ -298,14 +313,11 @@ class FSIM_base(nn.Module):
         # the specified filter orientation.  To overcome the angular wrap-around
         # problem sine difference and cosine difference values are first computed
         # and then the atan2 function is used to determine angular distance.
-        angl = pt.arange(0,self.norient,dtype=pt.float64)/self.norient*self.pi
-
-        if self.cuda_computation:
-            angl = angl.cuda()
-        ds_t1 = pt.cat(self.norient*[sintheta.unsqueeze(1)],1)*pt.cos(angl).view(-1,self.norient,1,1)
-        ds_t2 = pt.cat(self.norient*[costheta.unsqueeze(1)],1)*pt.sin(angl).view(-1,self.norient,1,1)
-        dc_t1 = pt.cat(self.norient*[costheta.unsqueeze(1)],1)*pt.cos(angl).view(-1,self.norient,1,1)
-        dc_t2 = pt.cat(self.norient*[sintheta.unsqueeze(1)],1)*pt.sin(angl).view(-1,self.norient,1,1)
+        angl = self.angl
+        ds_t1 = pt.cat(self.norient*[self.sintheta.unsqueeze(1)],1)*pt.cos(angl).view(-1,self.norient,1,1)
+        ds_t2 = pt.cat(self.norient*[self.costheta.unsqueeze(1)],1)*pt.sin(angl).view(-1,self.norient,1,1)
+        dc_t1 = pt.cat(self.norient*[self.costheta.unsqueeze(1)],1)*pt.cos(angl).view(-1,self.norient,1,1)
+        dc_t2 = pt.cat(self.norient*[self.sintheta.unsqueeze(1)],1)*pt.sin(angl).view(-1,self.norient,1,1)
         ds = ds_t1-ds_t2 # Difference in sine.
         dc = dc_t1+dc_t2 # Difference in cosine.
         dtheta = pt.abs(pt.atan2(ds,dc)) # Absolute angular distance.
@@ -317,16 +329,16 @@ class FSIM_base(nn.Module):
         # Batch size, scale, orientation, pixels, pixels
         spread_rep = pt.cat(self.nscale*[spread]).view(-1,self.nscale,self.norient,rows,cols)
         filter_log_spread = logGabor_rep*spread_rep
-        array_of_zeros = pt.zeros(filter_log_spread.unsqueeze(5).size(),dtype=pt.float64)
-        if self.cuda_computation:
-            array_of_zeros = array_of_zeros.cuda()
-        filter_log_spread_zero = pt.cat((filter_log_spread.unsqueeze(5),array_of_zeros), dim=5)
-        ifftFilterArray = pt.ifft(filter_log_spread_zero,signal_ndim =2).select(5,0)*math.sqrt(rows*cols)
+        # self.array_of_zeros = pt.zeros(filter_log_spread.unsqueeze(5).size(),dtype=pt.float64)
+        # if self.cuda_computation:
+        #     self.array_of_zeros = self.array_of_zeros.cuda()
+        filter_log_spread_zero = pt.cat((filter_log_spread.unsqueeze(5),self.array_of_zeros), dim=5)
+        ifftFilterArray = pt.view_as_real(pt.fft.ifft2(pt.view_as_complex(filter_log_spread_zero))).select(5,0)*math.sqrt(rows*cols)
 
         imagefft_repeat = pt.cat(self.nscale*self.norient*[imagefft],dim=1).view(-1,self.nscale,self.norient,rows,cols,2)
         filter_log_spread_repeat = pt.cat(2*[filter_log_spread.unsqueeze(5)],dim=5)
         # Convolve image with even and odd filters returning the result in EO
-        EO = pt.ifft(filter_log_spread_repeat*imagefft_repeat,signal_ndim=2)
+        EO = pt.view_as_real(pt.fft.ifft2(pt.view_as_complex(filter_log_spread_repeat*imagefft_repeat)))
 
         E = EO.select(5, 0)
         O = EO.select(5, 1)
@@ -375,7 +387,7 @@ class FSIM_base(nn.Module):
         rolling_mult = roll_t1+roll_t2+roll_t3
         EstSumAiAj = pt.sum(rolling_mult,1)/2
         sumEstSumAiAj = pt.sum(pt.sum(EstSumAiAj,2),2)
-
+        
         EstNoiseEnergy2 = 2*noisePower*sumEstSumAn2+4*noisePower*sumEstSumAiAj
         tau = pt.sqrt(EstNoiseEnergy2/2)
         EstNoiseEnergy = tau*math.sqrt(self.pi/2)
@@ -390,11 +402,13 @@ class FSIM_base(nn.Module):
         
         T_exp = pt.cat(rows*cols*[T.unsqueeze(2)],dim=2).view(-1,self.norient,rows,cols)
         AnAll = pt.sum(sumAn_ThisOrient,1)
-        array_of_zeros_energy = pt.zeros(Energy.size(),dtype=pt.float64)
-        if self.cuda_computation:
-            array_of_zeros_energy =array_of_zeros_energy.cuda()
+        # print(self.array_of_zeros_energy.size())
+        # self.array_of_zeros_energy = pt.zeros(Energy.size(),dtype=pt.float64)
+        # print(self.array_of_zeros_energy.size())
+        # if self.cuda_computation:
+        #     self.array_of_zeros_energy =self.array_of_zeros_energy.cuda()
             
-        EnergyAll = pt.sum(pt.where((Energy - T_exp)<0.0, array_of_zeros_energy,Energy - T_exp ),1)
+        EnergyAll = pt.sum(pt.where((Energy - T_exp)<0.0, self.array_of_zeros_energy,Energy - T_exp ),1)
         ResultPC = EnergyAll/AnAll
         
         return ResultPC
@@ -430,13 +444,18 @@ class FSIMc(FSIM_base, nn.Module):
     '''
     Note, the input is expected to be from 0 to 255
     '''
-    def __init__(self):
+    def __init__(self, size:int, batch:int):
         super().__init__()
+        sizein = size
+        batchin = batch
+        self.create_meshgrid(sizein, sizein)
+        self.lowpassfilter(sizein, sizein)
+        self.setangl()
+        self.createAuxVars(batchin, sizein, sizein)
         
     def forward(self,imgr,imgd):
         if imgr.is_cuda:
             self.set_arrays_to_cuda()
-            
             
         I1,Q1,Y1 = self.process_image_channels(imgr)
         I2,Q2,Y2 = self.process_image_channels(imgd)
