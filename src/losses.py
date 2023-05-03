@@ -2,6 +2,9 @@ import torch
 import torch.nn.functional as F
 from torchvision import transforms
 import kornia
+from torchmetrics.functional import universal_image_quality_index
+from libs.pytorch_fsim.fsim import FSIMc
+import piq.fsim as piqfsim
 
 from math import exp
 import numpy as np
@@ -181,7 +184,69 @@ class SSIMLoss(torch.nn.Module):
 
     def forward(self, img1:torch.Tensor, img2:torch.Tensor) -> torch.Tensor:
         tssim, _ = ssim(img1, img2, self.img_range, window_size=self.window_size, size_average=True)
-        return 1.0 - tssim
+        return tssim
+    
+class UQILoss(torch.nn.Module):
+    def __init__(self, img_range:tuple[float, float]):
+        '''
+            Universal Quality Index
+            Models any distortion in the image as a combination of the
+            loss of correlation
+            luminance distortion
+            contrast distortion
+        '''
+        super(UQILoss, self).__init__()
+        delta = img_range[1]-img_range[0]
+        self.adjust = transforms.Normalize(min(img_range), delta)
+
+    def forward(self, img1:torch.Tensor, img2:torch.Tensor) -> torch.Tensor:
+        if torch.cuda.is_available():
+            tmp1 = self.adjust(img1.clone().detach().cuda())
+            tmp2 = self.adjust(img2.clone().detach().cuda())
+        else:
+            tmp1 = self.adjust(img1.clone().detach())
+            tmp2 = self.adjust(img2.clone().detach())
+        return universal_image_quality_index(tmp1, tmp2, data_range=(2,2))
+    
+class FSIMcpiq(torch.nn.Module):
+    def __init__(self, srng:tuple[float, float]):
+        '''
+            FSIMc - Feature Similarity Index for Image Quality Assesment (c)
+            Additionally intgrates Luminance and Chrominance over FSIM
+        '''
+        super(FSIMcpiq, self).__init__()
+        self.srng = srng
+        self.delta = srng[1]-srng[0]
+
+    def forward(self, img1:torch.Tensor, img2:torch.Tensor) -> torch.Tensor:
+        return piqfsim(img1-self.srng[0], img2-self.srng[0], data_range=self.delta, chromatic=True)
+   
+class FSIMcLoss(torch.nn.Module):
+    def __init__(self, srng:tuple[float, float], img_res:int, batch_s:int):
+        '''
+            FSIMc - Feature Similarity Index for Image Quality Assesment (c)
+            Additionally intgrates Luminance and Chrominance over FSIM
+        '''
+        super(FSIMcLoss, self).__init__()
+        self.FSIMc_proc = FSIMc(img_res, batch_s)        # Need to update this to work corectly.
+        self.srng = srng
+        delta = self.srng[1]-self.srng[0]
+        self.adjust = transforms.Normalize(min(self.srng[0], self.srng[1]), delta/255.0)
+
+    def forward(self, img1:torch.Tensor, img2:torch.Tensor) -> torch.Tensor:
+        # Have to scale to 0-255 as this library expects that input range. Do this using normalization.
+        if torch.cuda.is_available():
+            tmp1 = self.adjust(img1.clone().detach().cuda())
+            tmp2 = self.adjust(img2.clone().detach().cuda())
+        else:
+            tmp1 = self.adjust(img1.clone().detach())
+            tmp2 = self.adjust(img2.clone().detach())
+        # test1 = tmp1 > 255.0
+        # test2 = tmp2 > 255.0
+        # if test1.any() or test2.any():
+        #     print("ERROR OVER 255 DANGER DANGER DANGER INPUT BAD")
+        return self.FSIMc_proc(tmp1, tmp2)
+
 
 
 class MSSSIMLoss(torch.nn.Module):
