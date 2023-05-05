@@ -1,5 +1,7 @@
 import torch
 from torch.utils.data import Dataset, Dataset, DataLoader
+from torchvision import transforms
+from dcpref import DarkChannelPrior
 
 import os
 import sys
@@ -32,7 +34,7 @@ class Trainer:
     '''
     def __init__(self, save_path:str, num_epoch:int = 10, batch_size:int = 16, 
                 num_workers:int = 4, pin_memory:bool = True, run_val_and_test_every_steps:int = 500,
-                val_batch_size:int = 1, test_batch_size:int = 1):
+                val_batch_size:int = 1, test_batch_size:int = 1, output_transform:transforms.Compose=transforms.Compose([])):
         self.save_path = save_path
         self.num_epoch = num_epoch
         self.batch_size = batch_size
@@ -43,6 +45,8 @@ class Trainer:
         self.test_batch_size = test_batch_size
         self.validation_loader = None
         self.test_loader = None
+        self.output_transform = output_transform
+        self.dc_apply = DarkChannelPrior(self.device)
         
         self.global_step = 0
         self.train_step = 0
@@ -65,6 +69,16 @@ class Trainer:
                 self.epoch_step = epoch
                 with tqdm(total = len(train_set), desc=f'Epoch {epoch + 1}/{self.num_epoch}', unit='batch') as pbar:  # type: ignore
                     for itx_train, dataset_tuple in enumerate(train_loader):
+                        if self.use_dark_channel:
+                            stack = torch.cat((dataset_tuple[0], torch.zeros_like(dataset_tuple[1]))+tuple(dataset_tuple[1:]), dim=1)
+                            stack = stack.to(self.device)
+                            stack[:,3:4,:,:] = self.dc_apply(stack[:,0:3,:,:])
+                        else:
+                            stack = torch.cat(dataset_tuple, dim=1)
+                        
+                        stack = self.output_transform(stack)
+                        dataset_tuple = torch.split(stack, (3+1*self.use_dark_channel,1,3), dim=1)
+
                         # Run training iteration
                         self.trainIteration(net, dataset_tuple, *args, **kwargs)
 
@@ -108,6 +122,16 @@ class Trainer:
         self.validation_step = 0
         with tqdm(total=len(validation_set), desc='Running Validation', unit='batch') as pbar:  # type: ignore
             for itx_val, dataset_tuple in enumerate(self.validation_loader):
+                if self.use_dark_channel:
+                    stack = torch.cat((dataset_tuple[0], torch.zeros_like(dataset_tuple[1]))+tuple(dataset_tuple[1:]), dim=1)
+                    stack = stack.to(self.device)
+                    stack[:,3:4,:,:] = self.dc_apply(stack[:,0:3,:,:])
+                else:
+                    stack = torch.cat(dataset_tuple, dim=1)
+
+                stack = self.output_transform(stack)
+                dataset_tuple = torch.split(stack, (3+1*self.use_dark_channel,1,3), dim=1)
+
                 # Run validation iteration
                 self.validationIteration(net, dataset_tuple, *args, **kwargs)
 
@@ -132,6 +156,16 @@ class Trainer:
         self.test_step = 0
         with tqdm(total=len(self.test_loader), desc='Running Test', unit='batch') as pbar:
             for itx_test, dataset_tuple in enumerate(self.test_loader):
+                if self.use_dark_channel:
+                    stack = torch.cat((dataset_tuple[0], torch.zeros_like(dataset_tuple[1]))+tuple(dataset_tuple[1:]), dim=1)
+                    stack = stack.to(self.device)
+                    stack[:,3:4,:,:] = self.dc_apply(stack[:,0:3,:,:])
+                else:
+                    stack = torch.cat(dataset_tuple, dim=1)
+
+                stack = self.output_transform(stack)
+                dataset_tuple = torch.split(stack, (3+1*self.use_dark_channel,1,3), dim=1)
+
                 # Run validation iteration
                 self.testIteration(net, dataset_tuple, *args, **kwargs)
 

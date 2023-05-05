@@ -14,6 +14,8 @@ from dcpref import DarkChannelPrior
 from utils import *
 from SynthTrainer import SynthTrainer
 
+import matplotlib.pyplot as plt
+
 
 class GANTrainer(SynthTrainer):
     def __init__(self, optimzer_d:Optimizer, use_dark_channel:bool=False, *args, **kwargs):
@@ -25,13 +27,23 @@ class GANTrainer(SynthTrainer):
         super().__init__(*args, **kwargs)
         #torch.autograd.set_detect_anomaly(True)
 
+    # def imshow_tensor(self, axs_ref, tensor, denormalize = False):
+    #     '''
+    #     axs_ref: reference to matplotlib axs for plotting.
+    #     tensor: C, H, W image tensor
+    #     '''
+    #     if denormalize:
+    #         tensor = (tensor + 1.0)/2.0
+
+    #     axs_ref.imshow(kornia.utils.tensor_to_image(transforms.ConvertImageDtype(torch.uint8)(tensor.cpu())))
+
     def trainIteration(self, net:torch.nn.Module, dataset_tuple:Tuple, net_d:torch.nn.Module):
         smoke_img, true_mask, bg_img = dataset_tuple
         
         smoke_img = smoke_img.to(device=self.device, dtype=torch.float32)
         bg_img = bg_img.to(device=self.device, dtype=torch.float32)
 
-        dark_img = self.dcp_gen(smoke_img).to(device=self.device)
+        # dark_img = self.dcp_gen(smoke_img).to(device=self.device)
 
         if torch.isnan(smoke_img).any():
             logging.warning("Training data, smoke_img, has NaN!!!!")
@@ -39,15 +51,42 @@ class GANTrainer(SynthTrainer):
         if torch.isnan(bg_img).any():
             logging.warning("Training data, bg_img, has NaN!!!!")
             return
-        if torch.isnan(smoke_img).any():
-            logging.warning("Dark channel data has NaN!!!!")
-            return
+        # if torch.isnan(smoke_img).any():
+        #     logging.warning("Dark channel data has NaN!!!!")
+        #     return
 
-        if self.use_dark_channel:
-            smoke_img = torch.cat((smoke_img, dark_img), dim=1)
+        # if self.use_dark_channel:
+        #     smoke_img = torch.cat((smoke_img, dark_img), dim=1)
         
        #smoke_img = smoke_img[:, :3, :, :] # Done for single frame... do I need this?
         
+        # fig = plt.subplot(4,3,1)
+        # self.imshow_tensor(fig, smoke_img[0][:3,:,:], denormalize=True)
+        # fig = plt.subplot(4,3,2)
+        # self.imshow_tensor(fig, smoke_img[1][:3,:,:], denormalize=True)
+        # fig = plt.subplot(4,3,3)
+        # self.imshow_tensor(fig, smoke_img[2][:3,:,:], denormalize=True)
+        # fig = plt.subplot(4,3,4)
+        # self.imshow_tensor(fig, smoke_img[0][3:,:,:], denormalize=True)
+        # fig = plt.subplot(4,3,5)
+        # self.imshow_tensor(fig, smoke_img[1][3:,:,:], denormalize=True)
+        # fig = plt.subplot(4,3,6)
+        # self.imshow_tensor(fig, smoke_img[2][3:,:,:], denormalize=True)
+        # fig = plt.subplot(4,3,7)
+        # self.imshow_tensor(fig, true_mask[0], denormalize=True)
+        # fig = plt.subplot(4,3,8)
+        # self.imshow_tensor(fig, true_mask[1], denormalize=True)
+        # fig = plt.subplot(4,3,9)
+        # self.imshow_tensor(fig, true_mask[2], denormalize=True)
+        # fig = plt.subplot(4,3,10)
+        # self.imshow_tensor(fig, bg_img[0], denormalize=True)
+        # fig = plt.subplot(4,3,11)
+        # self.imshow_tensor(fig, bg_img[1], denormalize=True)
+        # fig = plt.subplot(4,3,12)
+        # self.imshow_tensor(fig, bg_img[2], denormalize=True)
+
+
+
         # Train D
         # -- Inference on G and D w/ both predicted "fake" data and real data to train D
         bg_pred = net(smoke_img)
@@ -84,9 +123,9 @@ class GANTrainer(SynthTrainer):
         smoke_img, _, _ = dataset_tuple
         smoke_img = smoke_img.to(device=self.device, dtype=torch.float32)
 
-        dark_img = self.dcp_gen(smoke_img).to(device=self.device, dtype=torch.float32)
-        if self.use_dark_channel:
-            smoke_img = torch.cat((smoke_img, dark_img), dim=1)
+        # dark_img = self.dcp_gen(smoke_img).to(device=self.device, dtype=torch.float32)
+        # if self.use_dark_channel:
+        #     smoke_img = torch.cat((smoke_img, dark_img), dim=1)
 
         #smoke_img = smoke_img[:, :3, :, :] # Do I even need to do this?
 
@@ -137,6 +176,16 @@ def run(args:dict, UNET:torch.nn.Module, discriminator:torch.nn.Module,
     optimizer = Adam(UNET.parameters(), lr=args['lr'], betas=[0.5, 0.999]) 
     optimzer_d = Adam(discriminator.parameters(), lr=args['lr'], betas=[0.5, 0.999]) 
 
+    img_size = 256
+
+    output_transform_synth = transforms.Compose([
+                                                 transforms.ConvertImageDtype(torch.float32),
+                                                 transforms.RandomRotation((-5.0, 5.0)),
+                                                 transforms.RandomResizedCrop((img_size, img_size)),
+                                                 transforms.RandomHorizontalFlip(),
+                                                 transforms.RandomVerticalFlip(),
+                                                 transforms.Normalize(mean = 0.5, std = 0.5),
+                                                 ])
 
     # Initialize and run trainer
     trainer = GANTrainer(device = device, 
@@ -147,7 +196,8 @@ def run(args:dict, UNET:torch.nn.Module, discriminator:torch.nn.Module,
                           save_path = args['save'], num_epoch = args['epochs'], batch_size = args['batch'],
                           single_frame = True,
                           use_dark_channel=args['use_dark_channel'],
-                           run_val_and_test_every_steps = args['run_val_and_test_every_steps']
+                          run_val_and_test_every_steps = args['run_val_and_test_every_steps'],
+                          output_transform = output_transform_synth,
                           )
 
     trainer.train(UNET, train_dataset, val_dataset, test_dataset, net_d = discriminator)
