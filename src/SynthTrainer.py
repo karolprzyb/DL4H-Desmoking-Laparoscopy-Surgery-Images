@@ -30,13 +30,13 @@ class SynthTrainer(Trainer):
                  optimizer:Optimizer,
                  val_crit_list:List[torch.nn.Module] = [PSNR(2.0), SSIMLoss(2.0), UQILoss((-1,1)), FSIMcpiq([-1,1])], # [PSNR(2.0), torch.nn.MSELoss(), torch.nn.L1Loss()]   # THIS IS TOO SLOW using piq -- FSIMcLoss((-1.0,1.0), 256, 1)
                  single_frame:bool = False, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.device = device
         self.training_criterion = training_criterion
         self.optimizer = optimizer
         self.writer = writer
         self.val_crit_list = val_crit_list
         self.single_frame = single_frame
+        super().__init__(*args, **kwargs)
 
     def trainIteration(self, net:torch.nn.Module, dataset_tuple:Tuple, *args, **kwargs):
         '''
@@ -109,6 +109,7 @@ class SynthTrainer(Trainer):
 
         # Run network inference
         bg_pred = self.networkInference(net, dataset_tuple, *args, **kwargs)
+        smoke_img, dark_img = torch.split(smoke_img, [3,1], dim=1)
 
         # Compute validation loss and save statistic (total)
         for idx, val_crit in enumerate(self.val_crit_list):
@@ -132,13 +133,14 @@ class SynthTrainer(Trainer):
                 bg_pred = ( (bg_pred[0].cpu() + 1) / 2 )
                 self.bg_pred_list.append(bg_pred)
             if self.use_dark_channel:
-                self.dark_channel_list.append(self.dcp_gen(smoke_img.to(self.device).unsqueeze(0))[0].cpu())
+                self.dark_channel_list.append(dark_img[0].cpu())
 
     def testIteration(self, net: torch.nn.Module, dataset_tuple: Tuple, *args, **kwargs):
         smoke_img, true_mask, bg_img = dataset_tuple
 
         # Run network inference
         bg_pred = self.networkInference(net, dataset_tuple, *args, **kwargs)
+        smoke_img, dark_img = torch.split(smoke_img, [3,1], dim=1)
 
         # Compute validation loss and save statistic (total)
         for idx, val_crit in enumerate(self.val_crit_list):
@@ -159,7 +161,7 @@ class SynthTrainer(Trainer):
                 bg_pred = ( (bg_pred[0].cpu() + 1) / 2 )
                 self.bg_pred_list_test.append(bg_pred)
             if self.use_dark_channel:
-                self.dark_channel_list_test.append(self.dcp_gen(smoke_img.to(self.device).unsqueeze(0))[0].cpu())
+                self.dark_channel_list_test.append(dark_img[0].cpu())
 
     def test(self, net:torch.nn.Module, test_set:Dataset, *args, **kwargs):
         '''
