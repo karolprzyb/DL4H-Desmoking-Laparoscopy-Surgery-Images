@@ -31,7 +31,9 @@ class GANTrainer(SynthTrainer):
         smoke_img = smoke_img.to(device=self.device, dtype=torch.float32)
         bg_img = bg_img.to(device=self.device, dtype=torch.float32)
 
-        dark_img = self.dcp_gen(smoke_img).to(device=self.device)
+        if self.use_dark_channel:
+            dark_img = self.dcp_gen(smoke_img).to(device=self.device)
+            smoke_img = torch.cat((smoke_img, dark_img), dim=1)
 
         if torch.isnan(smoke_img).any():
             logging.warning("Training data, smoke_img, has NaN!!!!")
@@ -39,14 +41,6 @@ class GANTrainer(SynthTrainer):
         if torch.isnan(bg_img).any():
             logging.warning("Training data, bg_img, has NaN!!!!")
             return
-        if torch.isnan(smoke_img).any():
-            logging.warning("Dark channel data has NaN!!!!")
-            return
-
-        if self.use_dark_channel:
-            smoke_img = torch.cat((smoke_img, dark_img), dim=1)
-        
-       #smoke_img = smoke_img[:, :3, :, :] # Done for single frame... do I need this?
         
         # Train D
         # -- Inference on G and D w/ both predicted "fake" data and real data to train D
@@ -84,11 +78,9 @@ class GANTrainer(SynthTrainer):
         smoke_img, _, _ = dataset_tuple
         smoke_img = smoke_img.to(device=self.device, dtype=torch.float32)
 
-        dark_img = self.dcp_gen(smoke_img).to(device=self.device, dtype=torch.float32)
         if self.use_dark_channel:
+            dark_img = self.dcp_gen(smoke_img).to(device=self.device, dtype=torch.float32)
             smoke_img = torch.cat((smoke_img, dark_img), dim=1)
-
-        #smoke_img = smoke_img[:, :3, :, :] # Do I even need to do this?
 
         bg_pred = net(smoke_img)
         
