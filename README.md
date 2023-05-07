@@ -5,11 +5,11 @@ How to run:
 
 1. Please download these datasets:
 
-https://zenodo.org/record/4515433#.ZFf-EM7MIuU
+    https://zenodo.org/record/4515433#.ZFf-EM7MIuU
 
-Cholec80 from here (for valid research purposes only):
+    Cholec80 from here (for valid research purposes only):
 
-http://camma.u-strasbg.fr/datasets
+    http://camma.u-strasbg.fr/datasets
 
 2. Install conda environment from 'conda_env' folder
 
