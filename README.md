@@ -35,6 +35,7 @@ trainer base classes - Dr. Florian Richter
 Additional guidance and advice on implementation - Dr. Florian Richter
 
 Cholec 80 dataset utilized, origin of data:
+
 Andru Twinanda, Didier Mutter Sherif Shehata, Jacques
 Marescaux, and Nicolas Padoy Michel De Mathelin.
 2016. Endonet: A deep architecture for recognition
@@ -42,6 +43,7 @@ tasks on laparoscopic videos. IEEE Transactions on
 Medical Imaging, 36.
 
 Source paper citation:
+
 Sebasti  ́an Salazar-Colores, Hugo Moreno Jim  ́enez,
 C  ́esar Javier Ortiz-Echeverri, and Gerardo Flores.
 2020. Desmoking laparoscopy surgery images using
