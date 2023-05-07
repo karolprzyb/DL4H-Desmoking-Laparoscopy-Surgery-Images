@@ -1,6 +1,8 @@
 # DL4H-Desmoking-Laparoscopy-Surgery-Images
 Implemenation of paper https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9261326
 
+IMPORTANT: Please run this in a python environment as one of the notebooks will patch the torchmetrics install in such a way that can break it for other uses.
+
 How to run:
 
 1. Please download these datasets:
