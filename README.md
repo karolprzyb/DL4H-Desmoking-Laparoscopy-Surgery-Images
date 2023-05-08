@@ -3,6 +3,13 @@ Implemenation of paper https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9261
 
 IMPORTANT: Please run this in a python environment as one of the notebooks will patch the torchmetrics install in such a way that can break it for other uses.
 
+BONUS NOTEBOOK:
+
+These have been split across two notebooks due to the size. Please see 'How to run' below for additional optional notebooks not strictly pertinent to the paper reproduction.
+
+1. 'synthetic_smoke_prep.ipynb'
+2. 'train_and_run.ipynb'
+
 How to run:
 
 1. Please download these datasets:
