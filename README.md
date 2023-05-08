@@ -17,9 +17,9 @@ How to run:
 
 3. Open 'synthetic_smoke_prep.ipynb' and follow instructions to setup the dataset and prep it. You will need a few days of processing for this and about 1TB of disk space.
 
-4. Open 'train_and_run.ipynb' and follow instructions to train the models and run validation/test metrics. This will take an additional 1-2 days depending on hardware. This is assuming a single GPU 3070 class or higher. Please see notebooks for additional runtime estimates. This may work with 4gb vram but I have only tested with a 3070 8gb.
+4. Open 'train_and_run.ipynb' and follow instructions to train the models and run validation/test metrics. This will take an additional 1-2 days depending on hardware. This is assuming a single GPU 3070 class or higher. Please see notebooks for additional runtime estimates. This may work with 4gb vram but I have only tested with a 3070 8gb. REFERENCES ARE AT THE END OF THIS NOTEBOOK.
 
-5. If desired you can run real smoke data through the net of your choice and make a side-by-side comparison video using 'run_inference.ipynb'. Note that this is entirely qualitative since no metrics are possible on non-synthetically smoked images. There is no base truth to compare against.
+5. If desired you can run real smoke data through the net of your choice and make a side-by-side comparison video using 'run_inference.ipynb'. Note that this is entirely qualitative since no metrics are possible on non-synthetically smoked images. There is no base truth to compare against. A slideshow video for synthetic desmoking is also included. This is technically beyond the scope of the paper due to the non-quantitative nature, but interesting to play with.
 
 6. To see dark channel prior in action you can open 'try_dcp.ipynb'. It will show you the smokes vs dark channel prior massks as well as the image they are generated from.
 
