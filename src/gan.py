@@ -119,7 +119,7 @@ def run(args:dict, UNET:torch.nn.Module, discriminator:torch.nn.Module,
     logging.info(discriminator)
 
     # Prepare traiing
-    training_criterion  = torch.nn.L1Loss()
+    training_criterion  = torch.nn.L1Loss() # Alternatively uncomment sigmoid in discriminator and change to BCEloss, but preliminary experiments show decrease in performance.
 
     # # Load saved network
     # if args['load_net'] is not None:
