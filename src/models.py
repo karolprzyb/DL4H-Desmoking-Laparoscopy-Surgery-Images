@@ -26,7 +26,7 @@ class Discriminator(torch.nn.Module):
         
         sequence += [torch.nn.Conv2d(512, 1, kernel_size=4, stride=1)]
        
-       # sequence += [torch.nn.Sigmoid()] #IT APPEARS THIS WAS NOT USED IN THE PAPER. COULD LOOK AT ITS IMPACT LATER POSSIBLY
+       # sequence += [torch.nn.Sigmoid()] #I think this was not used in the paper since L1 loss was used. Experiments with this and BCE included in final paper
         
         self.model = torch.nn.Sequential(*sequence)
 
