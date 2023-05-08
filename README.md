@@ -41,9 +41,7 @@ python-clouds - from https://github.com/SquidDev/Python-Clouds - Modified and te
 
 data_augmentation - courtesy of collaborator Dr. Florian Richter - https://florianengineering.com/about
 
-
 trainer base classes - Dr. Florian Richter
-
 
 Additional guidance and advice on implementation - Dr. Florian Richter
 
