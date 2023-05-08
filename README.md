@@ -35,13 +35,19 @@ https://app.box.com/s/qpxotp2xr6rxn786helj7pwspzlsay3k
 
 In libs, patch, and data_augmentation includes:
 
+
 python-clouds - from https://github.com/SquidDev/Python-Clouds - Modified and tested for python 3.9 to generate rgba images - depends on pygame
+
 
 data_augmentation - courtesy of collaborator Dr. Florian Richter - https://florianengineering.com/about
 
+
 trainer base classes - Dr. Florian Richter
 
+
 Additional guidance and advice on implementation - Dr. Florian Richter
+
+
 
 Cholec 80 dataset utilized, origin of data:
 
