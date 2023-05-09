@@ -35,7 +35,7 @@ The original paper could not be reproduced. Performance with or without dark cha
 
 The UNET architecture presented here performs about as well as the very best UNET architectures that Salazar et al. presented in their paper. Please see the python notebooks for included results.
 
-![result table](https://github.com/karolprzyb/DL4H-Desmoking-Laparoscopy-Surgery-Images/edit/main/Capture.JPG)
+![result table](https://raw.githubusercontent.com/karolprzyb/DL4H-Desmoking-Laparoscopy-Surgery-Images/edit/main/Capture.PNG)
 
 Pre-trained models:
 https://app.box.com/s/qpxotp2xr6rxn786helj7pwspzlsay3k
